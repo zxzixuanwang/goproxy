@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/go-kit/log/level"
 )
 
 func headerContains(header http.Header, name string, value string) bool {
@@ -31,14 +33,14 @@ func (proxy *ProxyHttpServer) serveWebsocketTLS(ctx *ProxyCtx, w http.ResponseWr
 	// Connect to upstream
 	targetConn, err := tls.Dial("tcp", targetURL.Host, tlsConfig)
 	if err != nil {
-		ctx.Warnf("Error dialing target site: %v", err)
+		level.Error(ctx.Proxy.Logger).Log("Error dialing target site,err is", err)
 		return
 	}
 	defer targetConn.Close()
 
 	// Perform handshake
 	if err := proxy.websocketHandshake(ctx, req, targetConn, clientConn); err != nil {
-		ctx.Warnf("Websocket handshake error: %v", err)
+		level.Error(ctx.Proxy.Logger).Log("Websocket handshake error, err is", err)
 		return
 	}
 
@@ -51,7 +53,7 @@ func (proxy *ProxyHttpServer) serveWebsocket(ctx *ProxyCtx, w http.ResponseWrite
 
 	targetConn, err := proxy.connectDial(ctx, "tcp", targetURL.Host)
 	if err != nil {
-		ctx.Warnf("Error dialing target site: %v", err)
+		level.Error(ctx.Proxy.Logger).Log("Error dialing target site, err is", err)
 		return
 	}
 	defer targetConn.Close()
@@ -63,13 +65,14 @@ func (proxy *ProxyHttpServer) serveWebsocket(ctx *ProxyCtx, w http.ResponseWrite
 	}
 	clientConn, _, err := hj.Hijack()
 	if err != nil {
-		ctx.Warnf("Hijack error: %v", err)
+		level.Error(ctx.Proxy.Logger).
+			Log("Hijack error", err)
 		return
 	}
 
 	// Perform handshake
 	if err := proxy.websocketHandshake(ctx, req, targetConn, clientConn); err != nil {
-		ctx.Warnf("Websocket handshake error: %v", err)
+		level.Error(proxy.Logger).Log("Websocket handshake error", err)
 		return
 	}
 
@@ -81,7 +84,7 @@ func (proxy *ProxyHttpServer) websocketHandshake(ctx *ProxyCtx, req *http.Reques
 	// write handshake request to target
 	err := req.Write(targetSiteConn)
 	if err != nil {
-		ctx.Warnf("Error writing upgrade request: %v", err)
+		level.Error(proxy.Logger).Log("Error writing upgrade request, err is", err)
 		return err
 	}
 
@@ -90,7 +93,7 @@ func (proxy *ProxyHttpServer) websocketHandshake(ctx *ProxyCtx, req *http.Reques
 	// Read handshake response from target
 	resp, err := http.ReadResponse(targetTLSReader, req)
 	if err != nil {
-		ctx.Warnf("Error reading handhsake response  %v", err)
+		level.Error(proxy.Logger).Log("Error reading handhsake response, err is", err)
 		return err
 	}
 
@@ -100,7 +103,7 @@ func (proxy *ProxyHttpServer) websocketHandshake(ctx *ProxyCtx, req *http.Reques
 	// Proxy handshake back to client
 	err = resp.Write(clientConn)
 	if err != nil {
-		ctx.Warnf("Error writing handshake response: %v", err)
+		level.Error(proxy.Logger).Log("Error writing handshake response, err is", err)
 		return err
 	}
 	return nil
@@ -110,7 +113,7 @@ func (proxy *ProxyHttpServer) proxyWebsocket(ctx *ProxyCtx, dest io.ReadWriter, 
 	errChan := make(chan error, 2)
 	cp := func(dst io.Writer, src io.Reader) {
 		_, err := io.Copy(dst, src)
-		ctx.Warnf("Websocket error: %v", err)
+		level.Error(proxy.Logger).Log("Websocket error", err)
 		errChan <- err
 	}
 

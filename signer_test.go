@@ -3,7 +3,7 @@ package goproxy
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -74,8 +74,8 @@ func testSignerTls(t *testing.T, ca tls.Certificate) {
 	orFatal("NewRequest", err, t)
 	resp, err := tr.RoundTrip(req)
 	orFatal("RoundTrip", err, t)
-	txt, err := ioutil.ReadAll(resp.Body)
-	orFatal("ioutil.ReadAll", err, t)
+	txt, err := io.ReadAll(resp.Body)
+	orFatal("io.ReadAll", err, t)
 	if string(txt) != expected {
 		t.Errorf("Expected '%s' got '%s'", expected, string(txt))
 	}
